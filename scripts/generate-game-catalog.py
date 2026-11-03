@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Distill Discord's public detectable-games database into a compact catalog
-Rewind bundles for game detection.
+GetTheCamera bundles for game detection.
 
 Output: Resources/games.tsv  (lines of `executable-basename<TAB>Game Name`)
 

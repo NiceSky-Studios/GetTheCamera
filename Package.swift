@@ -2,28 +2,31 @@
 import PackageDescription
 
 let package = Package(
-	name: "Rewind",
+	name: "GetTheCamera",
 	platforms: [.macOS(.v14)],
 	products: [
-		.executable(name: "Rewind", targets: ["Rewind"]),
+		.executable(name: "GetTheCamera", targets: ["GetTheCamera"]),
+		.executable(name: "GetTheCameraInstaller", targets: ["GetTheCameraInstaller"]),
 	],
 	dependencies: [
-		.package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.2"),
 		.package(url: "https://github.com/CocoaLumberjack/CocoaLumberjack", exact: "3.8.5"),
 	],
 	targets: [
 		.target(
-			name: "RewindObjCSupport",
-			path: "Sources/RewindObjCSupport"
+			name: "GetTheCameraObjCSupport",
+			path: "Sources/GetTheCameraObjCSupport"
 		),
 		.executableTarget(
-			name: "Rewind",
+			name: "GetTheCameraInstaller",
+			path: "Sources/GetTheCameraInstaller"
+		),
+		.executableTarget(
+			name: "GetTheCamera",
 			dependencies: [
-				.product(name: "Sparkle", package: "Sparkle"),
 				.product(name: "CocoaLumberjackSwift", package: "CocoaLumberjack"),
-				"RewindObjCSupport",
+				"GetTheCameraObjCSupport",
 			],
-			path: "Sources/Rewind",
+			path: "Sources/GetTheCamera",
 			linkerSettings: [
 				.linkedLibrary("sqlite3"),
 				.unsafeFlags([
@@ -33,9 +36,9 @@ let package = Package(
 			]
 		),
 		.testTarget(
-			name: "RewindTests",
-			dependencies: ["Rewind"],
-			path: "Tests/RewindTests",
+			name: "GetTheCameraTests",
+			dependencies: ["GetTheCamera"],
+			path: "Tests/GetTheCameraTests",
 			linkerSettings: [
 				.unsafeFlags([
 					"-Xlinker", "-rpath", "-Xlinker", "@loader_path/../../..",

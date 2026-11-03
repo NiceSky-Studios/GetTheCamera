@@ -1,6 +1,6 @@
-# Rewind
+# GetTheCamera
 
-Rewind is a free, open-source macOS app for instantly clipping highlights of your gameplay. It sits quietly in your menu bar and is always ready to capture your best gaming moments with a simple hotkey.
+GetTheCamera is a free, open-source macOS app for instantly clipping highlights of your gameplay. It sits quietly in your menu bar and is always ready to capture your best gaming moments with a simple hotkey.
 
 ## Features
 
@@ -19,16 +19,32 @@ Rewind is a free, open-source macOS app for instantly clipping highlights of you
 ## Installation
  
 1. Go to the [Releases page](https://github.com/l1zov/rewind/releases) and download the `.dmg` from the latest release
-2. Open the DMG and double-click **Install Rewind**
-3. Launch Rewind from Applications or from the installer prompt
+2. Open the DMG and double-click **Install GetTheCamera**
+3. Launch GetTheCamera from Applications or from the installer prompt
  
 **Note:** The first time you open the installer, macOS may block it since it's not yet signed with an Apple certificate. Go to **System Settings -> Privacy & Security**, scroll down and click **Open Anyway**. Read more about Gatekeeper [here](https://disable-gatekeeper.github.io/).
+
+## Signing updates
+
+For permission grants to persist across app updates, package releases with the same Apple Developer ID identity:
+
+```bash
+GETTHECAMERA_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./scripts/build-package.sh --version 1.0.8
+```
+
+The packaging script automatically uses an installed `Developer ID Application` identity when one is available. To prevent accidental ad-hoc releases:
+
+```bash
+GETTHECAMERA_REQUIRE_DEVELOPER_ID=1 ./scripts/build-package.sh --version 1.0.13
+```
+
+Without a Developer ID certificate, the script falls back to ad-hoc signing. Ad-hoc builds may require permission approval again because macOS identifies each build by its code signature.
 
 If you prefer to build from source, follow the instructions below.
 
 ## Building from Source
 
-Rewind is built using Swift and Swift Package Manager.
+GetTheCamera is built using Swift and Swift Package Manager.
 
 1. Clone the repository:
    ```bash
@@ -45,7 +61,7 @@ Rewind is built using Swift and Swift Package Manager.
 ## Permissions
 
 
-On first launch, Rewind will ask for **Screen Recording** access. Click Allow. If you accidentally denied it, turn it back on in **System Settings -> Privacy & Security -> Screen Recording**.
+On first launch, GetTheCamera will ask for **Screen Recording** access. Click Allow. If you accidentally denied it, turn it back on in **System Settings -> Privacy & Security -> Screen Recording**.
 
 ## Contact
 

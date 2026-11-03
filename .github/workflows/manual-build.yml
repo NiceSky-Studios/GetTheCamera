@@ -27,6 +27,26 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
+      - name: Install Developer ID certificate
+        if: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12 != '' }}
+        env:
+          CERTIFICATE_P12: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/getthecamera.keychain-db"
+          security create-keychain -p "$RUNNER_TEMP" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$RUNNER_TEMP" "$KEYCHAIN_PATH"
+          echo "$CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" \
+            -P "$CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$RUNNER_TEMP" "$KEYCHAIN_PATH"
+
       - name: Normalize semantic version
         id: version_meta
         env:
@@ -58,80 +78,25 @@ jobs:
         env:
           POSTHOG_PROJECT_TOKEN: ${{ secrets.POSTHOG_PROJECT_TOKEN }}
           POSTHOG_HOST: ${{ secrets.POSTHOG_HOST || vars.POSTHOG_HOST }}
+          GETTHECAMERA_GOOGLE_CLIENT_ID: ${{ secrets.GETTHECAMERA_GOOGLE_CLIENT_ID }}
+          GETTHECAMERA_SIGNING_IDENTITY: ${{ secrets.GETTHECAMERA_SIGNING_IDENTITY }}
+          GETTHECAMERA_REQUIRE_DEVELOPER_ID: ${{ secrets.GETTHECAMERA_REQUIRE_DEVELOPER_ID || '0' }}
         run: bash scripts/build-package.sh --version "${{ steps.version_meta.outputs.version }}"
 
       - name: Create zip artifact
         run: |
-          ZIP_PATH="dist/Rewind-${{ steps.version_meta.outputs.release_tag }}.zip"
-          ditto -c -k --sequesterRsrc --keepParent "dist/Rewind.app" "${ZIP_PATH}"
-
-      - name: Generate Appcast
-        env:
-          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
-          IS_PRERELEASE: ${{ steps.version_meta.outputs.is_prerelease }}
-        run: |
-          if [ -z "${SPARKLE_PRIVATE_KEY}" ]; then
-            echo "missing SPARKLE_PRIVATE_KEY secret" >&2
-            exit 1
-          fi
-
-          # Seed the existing feed so generate_appcast keeps the other channel's
-          # items (a beta release preserves the stable item, and vice versa).
-          curl -fsSL "https://l1zov.github.io/rewind/appcast.xml" -o dist/appcast.xml \
-            || echo "No existing appcast found; generating a fresh feed."
-
-          # Write clean private key to temporary file
-          KEY_FILE="$(mktemp)"
-          printf '%s' "${SPARKLE_PRIVATE_KEY}" | tr -d '\r\n ' > "${KEY_FILE}"
-
-          mv dist/*.zip ./
-          mv dist/*-installer.dmg ./
-
-          if [ "${IS_PRERELEASE}" = "true" ]; then
-            .build/artifacts/sparkle/Sparkle/bin/generate_appcast --ed-key-file "${KEY_FILE}" --channel beta --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/${{ steps.version_meta.outputs.release_tag }}/" dist/
-          else
-            .build/artifacts/sparkle/Sparkle/bin/generate_appcast --ed-key-file "${KEY_FILE}" --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/${{ steps.version_meta.outputs.release_tag }}/" dist/
-          fi
-
-          rm -f "${KEY_FILE}"
-          mv ./*.zip dist/
-          mv ./*-installer.dmg dist/
-
-          # Strict check: ensure the new release is properly signed
-          if ! grep -q 'sparkle:edSignature' dist/appcast.xml; then
-            echo "Error: appcast.xml was generated without sparkle:edSignature!" >&2
-            exit 1
-          fi
-
-      - name: Deploy Appcast to GitHub Pages
-        run: |
-          git clone --branch gh-pages "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" pages_repo || {
-            echo "gh-pages branch does not exist, creating it..."
-            git init pages_repo
-            cd pages_repo
-            git checkout -b gh-pages
-            git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
-            cd ..
-          }
-          
-          cp dist/appcast.xml pages_repo/
-          
-          cd pages_repo
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add appcast.xml
-          git commit -m "chore: update appcast.xml for ${{ steps.version_meta.outputs.release_tag }}" || exit 0
-          git push origin gh-pages
+          ZIP_PATH="dist/GetTheCamera-${{ steps.version_meta.outputs.release_tag }}.zip"
+          ditto -c -k --sequesterRsrc --keepParent "dist/GetTheCamera.app" "${ZIP_PATH}"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: rewind-build
+          name: getthecamera-build
           path: |
             dist/*.dmg
             dist/*.zip
             dist/appcast.xml
-            dist/Rewind.app
+            dist/GetTheCamera.app
           if-no-files-found: error
 
       - name: Generate Changelog
@@ -153,7 +118,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version_meta.outputs.release_tag }}
-          name: Rewind ${{ steps.version_meta.outputs.release_tag }}
+          name: GetTheCamera ${{ steps.version_meta.outputs.release_tag }}
           target_commitish: ${{ github.sha }}
           body: ${{ steps.changelog.outputs.body }}
           prerelease: ${{ steps.version_meta.outputs.is_prerelease }}
@@ -185,7 +150,7 @@ jobs:
           fi
           
           JSON_PAYLOAD=$(jq -n \
-            --arg title "Rewind ${{ steps.version_meta.outputs.release_tag }} Released!" \
+            --arg title "GetTheCamera ${{ steps.version_meta.outputs.release_tag }} Released!" \
             --arg desc "$TRUNCATED_BODY" \
             --arg url "https://github.com/${{ github.repository }}/releases/tag/${{ steps.version_meta.outputs.release_tag }}" \
             '{embeds: [{title: $title, description: $desc, url: $url, color: 5814783}]}')

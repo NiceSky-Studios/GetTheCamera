@@ -2,8 +2,10 @@
 
 set -euo pipefail
 
-APP_NAME="Rewind"
-BUNDLE_ID="com.rewind.app"
+APP_NAME="GetTheCamera"
+BUNDLE_ID="com.getthecamera.app"
+SIGNING_IDENTITY="${GETTHECAMERA_SIGNING_IDENTITY:-}"
+REQUIRE_DEVELOPER_ID="${GETTHECAMERA_REQUIRE_DEVELOPER_ID:-0}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -15,6 +17,25 @@ if [[ -f "${POSTHOG_ENV_FILE}" ]]; then
   echo "Loading PostHog config from ${POSTHOG_ENV_FILE}"
   # shellcheck disable=SC1090
   source "${POSTHOG_ENV_FILE}"
+fi
+
+if [[ -z "${SIGNING_IDENTITY}" ]] && command -v security >/dev/null 2>&1; then
+  SIGNING_IDENTITY="$(
+    security find-identity -v -p codesigning 2>/dev/null \
+      | sed -n 's/^[[:space:]]*[0-9]*)[[:space:]]*[A-Fa-f0-9]*[[:space:]]*"Developer ID Application: \(.*\)"$/Developer ID Application: \1/p' \
+      | head -n 1
+  )"
+  if [[ -n "${SIGNING_IDENTITY}" ]]; then
+    echo "Using installed Developer ID identity: ${SIGNING_IDENTITY}"
+  fi
+fi
+
+if [[ "${REQUIRE_DEVELOPER_ID}" == "1" ]] || [[ "$(printf '%s' "${REQUIRE_DEVELOPER_ID}" | tr '[:upper:]' '[:lower:]')" == "true" ]]; then
+  if [[ -z "${SIGNING_IDENTITY}" ]] || [[ "${SIGNING_IDENTITY}" != *"Developer ID Application:"* ]]; then
+    echo "Developer ID signing is required, but no Developer ID Application certificate is installed." >&2
+    echo "Install the Apple Developer ID certificate, or set GETTHECAMERA_SIGNING_IDENTITY explicitly." >&2
+    exit 1
+  fi
 fi
 
 POSTHOG_HOST="${POSTHOG_HOST:-https://eu.i.posthog.com}"
@@ -98,7 +119,7 @@ remove_path() {
   return 0
 }
 
-adhoc_sign() {
+sign_package() {
   local target_path="$1"
   local label="$2"
   local entitlements="${3:-}"
@@ -108,12 +129,27 @@ adhoc_sign() {
     return 1
   fi
 
-  local opts=("--force" "--deep" "--sign" "-" "--timestamp=none")
+  local opts=("--force" "--deep" "--sign")
+  local signing_label="Adhoc signing"
+
+  if [[ -n "${SIGNING_IDENTITY}" ]]; then
+    opts+=("${SIGNING_IDENTITY}")
+    signing_label="Signing"
+  else
+    opts+=("-")
+  fi
+
+  if [[ -z "${SIGNING_IDENTITY}" ]]; then
+    opts+=("--timestamp=none")
+  else
+    opts+=("--timestamp")
+  fi
+
   if [[ -n "${entitlements}" ]]; then
     opts+=("--entitlements" "${entitlements}" "--options" "runtime")
   fi
 
-  echo "Adhoc signing ${label}..."
+  echo "${signing_label} ${label}..."
   codesign "${opts[@]}" "${target_path}"
   codesign --verify --deep --strict --verbose=2 "${target_path}"
 }
@@ -128,13 +164,21 @@ done
 shopt -u dotglob nullglob
 
 echo "Building ${APP_NAME} in release mode..."
-swift build -c release --package-path "${PROJECT_ROOT}" --product "${APP_NAME}" --arch arm64 --arch x86_64
+swift build -c release --package-path "${PROJECT_ROOT}" --product "${APP_NAME}" --arch arm64
 
-BIN_DIR="$(swift build -c release --package-path "${PROJECT_ROOT}" --show-bin-path --arch arm64 --arch x86_64)"
+BIN_DIR="$(swift build -c release --package-path "${PROJECT_ROOT}" --show-bin-path --arch arm64)"
 EXECUTABLE_PATH="${BIN_DIR}/${APP_NAME}"
 
 if [[ ! -x "${EXECUTABLE_PATH}" ]]; then
   echo "built executable not found at ${EXECUTABLE_PATH}" >&2
+  exit 1
+fi
+
+echo "Building branded installer..."
+swift build -c release --package-path "${PROJECT_ROOT}" --product "GetTheCameraInstaller" --arch arm64 >/dev/null
+INSTALLER_EXECUTABLE_PATH="$(swift build -c release --package-path "${PROJECT_ROOT}" --show-bin-path --arch arm64)/GetTheCameraInstaller"
+if [[ ! -x "${INSTALLER_EXECUTABLE_PATH}" ]]; then
+  echo "branded installer executable not found at ${INSTALLER_EXECUTABLE_PATH}" >&2
   exit 1
 fi
 
@@ -195,14 +239,12 @@ cat > "${CONTENTS_DIR}/Info.plist" <<EOF
   <string>14.0</string>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
-  <key>SUFeedURL</key>
-  <string>https://l1zov.github.io/rewind/appcast.xml</string>
-  <key>SUPublicEDKey</key>
-  <string>d0qDhMh7Acak94tDqDkPiyYj9U01VMshN1MZo7T6uD4=</string>
   <key>NSScreenCaptureUsageDescription</key>
-  <string>Rewind needs screen capture access to record your screen.</string>
+  <string>GetTheCamera needs screen capture access to record your screen.</string>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Rewind needs microphone access to record microphone audio.</string>
+  <string>GetTheCamera needs microphone access to record microphone audio.</string>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>GetTheCamera uses speech recognition so you can save clips by saying "Clip that".</string>
 </dict>
 </plist>
 EOF
@@ -219,16 +261,13 @@ else
   echo "POSTHOG_PROJECT_TOKEN not set; analytics will be disabled in this build."
 fi
 
-
-SPARKLE_FRAMEWORK_SRC="${PROJECT_ROOT}/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
-if [[ -d "${SPARKLE_FRAMEWORK_SRC}" ]]; then
-  ditto "${SPARKLE_FRAMEWORK_SRC}" "${FRAMEWORKS_DIR}/Sparkle.framework"
-  adhoc_sign "${FRAMEWORKS_DIR}/Sparkle.framework" "Sparkle framework"
-else
-  echo "Warning: Sparkle.framework not found in .build/artifacts" >&2
+if [[ -n "${GETTHECAMERA_GOOGLE_CLIENT_ID:-}" ]]; then
+  /usr/libexec/PlistBuddy -c "Add :GOOGLE_CLIENT_ID string ${GETTHECAMERA_GOOGLE_CLIENT_ID}" "${CONTENTS_DIR}/Info.plist"
+  echo "Injected Google Drive OAuth desktop client ID into Info.plist"
 fi
 
-cat > "${STAGING_ROOT}/Rewind.entitlements" <<EOF
+
+cat > "${STAGING_ROOT}/GetTheCamera.entitlements" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -241,7 +280,7 @@ cat > "${STAGING_ROOT}/Rewind.entitlements" <<EOF
 </plist>
 EOF
 
-adhoc_sign "${APP_BUNDLE}" "app bundle" "${STAGING_ROOT}/Rewind.entitlements"
+sign_package "${APP_BUNDLE}" "app bundle" "${STAGING_ROOT}/GetTheCamera.entitlements"
 
 echo "Creating drag-and-drop DMG..."
 remove_path "${DMG_PATH}" "disk image" || exit 1
@@ -250,7 +289,7 @@ mkdir -p "${APP_DMG_STAGING_DIR}"
 ditto "${APP_BUNDLE}" "${APP_DMG_STAGING_DIR}/${APP_NAME}.app"
 ln -s /Applications "${APP_DMG_STAGING_DIR}/Applications"
 hdiutil create -volname "${APP_NAME}" -srcfolder "${APP_DMG_STAGING_DIR}" -ov -format UDZO "${DMG_PATH}" >/dev/null
-adhoc_sign "${DMG_PATH}" "disk image"
+sign_package "${DMG_PATH}" "disk image"
 
 echo "Creating installer DMG..."
 remove_path "${INSTALLER_DMG_PATH}" "installer disk image" || exit 1
@@ -307,8 +346,8 @@ cat > "${INSTALLER_MACOS}/installer" <<'EOF'
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_NAME="Rewind"
-BUNDLE_ID="com.rewind.app"
+APP_NAME="GetTheCamera"
+BUNDLE_ID="com.getthecamera.app"
 APP_SOURCE="$(cd "${SCRIPT_DIR}/../Resources/${APP_NAME}.app" 2>/dev/null && pwd || true)"
 
 if [[ -z "${APP_SOURCE}" || ! -d "${APP_SOURCE}" ]]; then
@@ -373,11 +412,12 @@ fi
 exit 0
 EOF
 
+cp "${INSTALLER_EXECUTABLE_PATH}" "${INSTALLER_MACOS}/installer"
 chmod +x "${INSTALLER_MACOS}/installer"
-adhoc_sign "${INSTALLER_APP}" "installer app bundle"
+sign_package "${INSTALLER_APP}" "installer app bundle"
 
 hdiutil create -volname "${INSTALLER_NAME}" -srcfolder "${INSTALLER_STAGING_DIR}" -ov -format UDZO "${INSTALLER_DMG_PATH}" >/dev/null
-adhoc_sign "${INSTALLER_DMG_PATH}" "installer disk image"
+sign_package "${INSTALLER_DMG_PATH}" "installer disk image"
 
 echo "Publishing app bundle to dist..."
 APP_BUNDLE_PUBLISHED="false"
