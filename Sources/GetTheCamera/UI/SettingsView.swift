@@ -824,6 +824,17 @@ struct IntegrationsSettingsPane: View {
 
 			if appState.googleDriveSyncEnabled {
 				Section("Cloud Library") {
+					Button("Back up existing clips") {
+						Task {
+							for clip in appState.clipLibrary.clips {
+								do {
+									try await GoogleDriveSyncManager.shared.sync(clipAt: clip.url)
+								} catch {
+									GoogleDriveSyncManager.shared.queueForUpload(clipAt: clip.url)
+								}
+							}
+						}
+					}
 					Button(cloudLoading ? "Refreshing..." : "Refresh Cloud Library") {
 						Task {
 							cloudLoading = true

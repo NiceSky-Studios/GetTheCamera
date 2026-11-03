@@ -63,6 +63,18 @@ final class AppState: ObservableObject {
 	@Published var reelExportPreset: HighlightReelExporter.ExportPreset {
 		didSet { UserDefaults.standard.set(reelExportPreset.rawValue, forKey: "reelExportPreset") }
 	}
+	@Published var customExportProfiles: [CustomExportProfile] {
+		didSet { CustomExportProfileStore.save(customExportProfiles) }
+	}
+	@Published var selectedCustomExportProfileID: UUID? {
+		didSet {
+			if let selectedCustomExportProfileID {
+				UserDefaults.standard.set(selectedCustomExportProfileID.uuidString, forKey: "selectedCustomExportProfileID")
+			} else {
+				UserDefaults.standard.removeObject(forKey: "selectedCustomExportProfileID")
+			}
+		}
+	}
 	@Published var clipCollections: [String] {
 		didSet { UserDefaults.standard.set(clipCollections, forKey: "clipCollections") }
 	}
@@ -637,11 +649,19 @@ final class AppState: ObservableObject {
 		automationRules = AutomationRules.load()
 		reelExportPreset = HighlightReelExporter.ExportPreset(rawValue: UserDefaults.standard.string(forKey: "reelExportPreset") ?? "")
 			?? .source
+		let loadedCustomExportProfiles = CustomExportProfileStore.load()
+		customExportProfiles = loadedCustomExportProfiles
+		selectedCustomExportProfileID = nil
 		clipCollections = UserDefaults.standard.stringArray(forKey: "clipCollections") ?? []
 		clipProjects = UserDefaults.standard.stringArray(forKey: "clipProjects") ?? []
 		automaticAudioSpikeMarkers = UserDefaults.standard.object(forKey: "automaticAudioSpikeMarkers") as? Bool ?? false
 		automaticClipStartMarkers = UserDefaults.standard.object(forKey: "automaticClipStartMarkers") as? Bool ?? false
 		autoTranscriptEnabled = UserDefaults.standard.object(forKey: "autoTranscriptEnabled") as? Bool ?? false
+		if let id = UserDefaults.standard.string(forKey: "selectedCustomExportProfileID"),
+		   let profileID = UUID(uuidString: id),
+		   loadedCustomExportProfiles.contains(where: { $0.id == profileID }) {
+			selectedCustomExportProfileID = profileID
+		}
 
 		let dotaGSIAuthToken = UUID().uuidString
 		let dotaGSIServer = DotaGSIServer(port: DotaGSIServer.defaultPort, authToken: dotaGSIAuthToken)
@@ -923,11 +943,15 @@ final class AppState: ObservableObject {
 		Task { @MainActor in
 			do {
 				let folder = ClipStorageLocation.folder(outputDirectoryPath: outputDirectoryPath)
-				let url = try await HighlightReelExporter.export(
-					clips: sourceClips,
-					preset: reelExportPreset,
-					to: folder
-				)
+				let url: URL
+				if let profile = customExportProfiles.first(where: { $0.id == selectedCustomExportProfileID }) {
+					let segments = sourceClips.map {
+						HighlightReelExporter.Segment(clip: $0, start: .zero, end: CMTime(seconds: $0.duration, preferredTimescale: 600))
+					}
+					url = try await HighlightReelExporter.export(segments: segments, profile: profile, to: folder)
+				} else {
+					url = try await HighlightReelExporter.export(clips: sourceClips, preset: reelExportPreset, to: folder)
+				}
 				let asset = AVURLAsset(url: url)
 				let duration = try await asset.load(.duration)
 				let reel = try await clipLibrary.addClip(url: url, duration: duration.seconds)
@@ -969,11 +993,12 @@ final class AppState: ObservableObject {
 						end: CMTime(seconds: max(start + 0.25, end), preferredTimescale: 600)
 					)
 				}
-				let url = try await HighlightReelExporter.export(
-					segments: segments,
-					preset: reelExportPreset,
-					to: folder
-				)
+				let url: URL
+				if let profile = customExportProfiles.first(where: { $0.id == selectedCustomExportProfileID }) {
+					url = try await HighlightReelExporter.export(segments: segments, profile: profile, to: folder)
+				} else {
+					url = try await HighlightReelExporter.export(segments: segments, preset: reelExportPreset, to: folder)
+				}
 				if captionStyle != .none {
 					let sidecar = url.deletingPathExtension().appendingPathExtension("vtt")
 					var lines = ["WEBVTT", ""]
@@ -1345,6 +1370,13 @@ final class AppState: ObservableObject {
 					if !detected.isEmpty {
 						clipLibrary.addTag("event-markers", to: clip)
 					}
+				}
+			}
+			Task { @MainActor in
+				let score = await AutomaticEventDetector.scoreHighlights(in: clip)
+				clipLibrary.addTag("highlight-score:\(score)", to: clip)
+				if score >= 70 {
+					clipLibrary.addTag("ai-highlight", to: clip)
 				}
 			}
 			if automaticCleanupEnabled {

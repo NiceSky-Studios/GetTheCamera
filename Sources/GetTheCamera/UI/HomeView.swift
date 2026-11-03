@@ -1,3 +1,4 @@
+import AppKit
 import AVKit
 import SwiftUI
 
@@ -30,6 +31,10 @@ struct HomeView: View {
 	@State private var projectName = ""
 	@State private var reelStarts: [UUID: Double] = [:]
 	@State private var reelEnds: [UUID: Double] = [:]
+	@State private var newProfileName = ""
+	@State private var newProfileResolution: CustomExportProfile.Resolution = .hd1080
+	@State private var newProfileFrameRate = 30
+	@State private var newProfileFormat: CustomExportProfile.Format = .mp4
 
 	let columns = [GridItem(.adaptive(minimum: 160, maximum: 240), spacing: 16)]
 
@@ -47,6 +52,11 @@ struct HomeView: View {
 		case "marked":
 			clips = appState.clipLibrary.clips.filter {
 				$0.tags.contains("event-markers")
+			}
+		case "highlights":
+			clips = appState.clipLibrary.clips.filter {
+				$0.tags.contains("ai-highlight")
+					|| $0.tags.contains(where: { $0.hasPrefix("highlight-score:") && (Int($0.split(separator: ":").last ?? "0") ?? 0) >= 70 })
 			}
 		default:
 			if let selectedCategory, selectedCategory.hasPrefix("collection:") {
@@ -86,6 +96,9 @@ struct HomeView: View {
 				}
 				NavigationLink(value: "marked") {
 					Label("Marked Moments", systemImage: "bookmark")
+				}
+				NavigationLink(value: "highlights") {
+					Label("AI Highlights", systemImage: "sparkles")
 				}
 				Section("Collections") {
 					ForEach(appState.clipCollections, id: \.self) { collection in
@@ -236,6 +249,53 @@ struct HomeView: View {
 					ForEach(HighlightReelExporter.ExportPreset.allCases) { preset in
 						Text(preset.rawValue).tag(preset)
 					}
+				}
+				Picker("Custom profile", selection: $appState.selectedCustomExportProfileID) {
+					Text("None (built-in preset)").tag(nil as UUID?)
+					ForEach(appState.customExportProfiles) { profile in
+						Text(profile.name).tag(profile.id as UUID?)
+					}
+				}
+				if !appState.customExportProfiles.isEmpty {
+					ForEach(appState.customExportProfiles) { profile in
+						if profile.id == appState.selectedCustomExportProfileID {
+							LabeledContent("Resolution", value: profile.resolution.rawValue)
+							LabeledContent("Frame rate", value: "\(profile.frameRate) fps")
+							LabeledContent("Format", value: profile.format.rawValue)
+							Button("Delete profile", role: .destructive) {
+								appState.customExportProfiles.removeAll { $0.id == profile.id }
+								appState.selectedCustomExportProfileID = nil
+							}
+						}
+					}
+				}
+				HStack {
+					TextField("New profile name", text: $newProfileName)
+					Picker("Resolution", selection: $newProfileResolution) {
+						ForEach(CustomExportProfile.Resolution.allCases) { Text($0.rawValue).tag($0) }
+					}
+					Picker("FPS", selection: $newProfileFrameRate) {
+						Text("30 fps").tag(30)
+						Text("60 fps").tag(60)
+					}
+					Picker("Format", selection: $newProfileFormat) {
+						ForEach(CustomExportProfile.Format.allCases) { Text($0.rawValue).tag($0) }
+					}
+					Button("Save profile") {
+						let name = newProfileName.trimmingCharacters(in: .whitespacesAndNewlines)
+						guard !name.isEmpty else { return }
+						let profile = CustomExportProfile(
+							name: name,
+							preset: appState.reelExportPreset,
+							resolution: newProfileResolution,
+							frameRate: newProfileFrameRate,
+							format: newProfileFormat
+						)
+						appState.customExportProfiles.append(profile)
+						appState.selectedCustomExportProfileID = profile.id
+						newProfileName = ""
+					}
+					.disabled(newProfileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 				}
 				Stepper("Maximum length: \(reelMaxDuration)s", value: $reelMaxDuration, in: 15...300, step: 15)
 				Text("Clip order")
@@ -428,6 +488,18 @@ struct TrimEditorView: View {
 						Button("Copy to clipboard") {
 							copyClipToPasteboard(clip.url)
 						}
+						Button("AirDrop...") {
+							shareClip(clip.url, serviceName: .sendViaAirDrop)
+						}
+						Button("Mail...") {
+							shareClip(clip.url, serviceName: .composeEmail)
+						}
+						Button("Messages...") {
+							shareClip(clip.url, serviceName: .composeMessage)
+						}
+						Button("Reveal in Finder") {
+							NSWorkspace.shared.activateFileViewerSelecting([clip.url])
+						}
 
 						ForEach(appState.enabledUploadProviders) { provider in
 							if provider.supportsExpiration {
@@ -554,6 +626,12 @@ struct TrimEditorView: View {
 		NSPasteboard.general.clearContents()
 		NSPasteboard.general.writeObjects([url as NSURL])
 		appState.trackClipAction(action: "copy")
+	}
+
+	private func shareClip(_ url: URL, serviceName: NSSharingService.Name) {
+		guard let service = NSSharingService(named: serviceName) else { return }
+		service.perform(withItems: [url])
+		appState.trackClipAction(action: "native_share", result: serviceName.rawValue)
 	}
 
 	private func showUploadFailure(_ error: Error, provider: ClipUploadProvider) {

@@ -1,22 +1,25 @@
-# What's New in GetTheCamera 1.6.1
+# What's New in GetTheCamera 1.7.0
 
-## More Voice Personalities
+## Complete Cloud Backup and Sharing
 
-- Added British AI Butler, Calm AI Assistant, Mission Commander, Friendly Companion, and Cinematic Voice presets.
-- Added personality-specific speech rate and pitch profiles.
-- Automatically prefers a British English voice for the British AI Butler style when one is installed.
-- Added previews for each personality's speaking style.
-- Preserved all style presets as original alternatives without actor or copyrighted-character impersonation.
+- Added a one-click backup action for existing clips in Google Drive.
+- New clips continue to upload automatically when cloud sync is enabled.
+- Added native macOS AirDrop, Mail, Messages, copy, and Finder sharing actions for clips.
 
-## Update Checking
+## On-Device Smart Highlights
 
-- Added a GitHub-based update check.
-- Added a direct link to the latest GitHub release when a new version is available.
-- Added an installed-version and latest-tag result when GetTheCamera is already up to date.
-- Releases are downloaded manually from GitHub; automatic installation is not enabled.
+- Added an AI Highlights library category for clips ranked by on-device audio activity.
+- Added highlight scores and high-confidence tags while clips are being saved.
+- Local highlight detection requires no external AI service.
+
+## Custom Reel Export Profiles
+
+- Added named, persistent reel export profiles.
+- Added resolution, frame-rate, container-format, and built-in quality choices.
+- Added profile selection and deletion in the Reel Editor.
 
 ---
 
-**Version:** 1.6.1
+**Version:** 1.7.0
 **Minimum macOS:** 14.0 Sonoma
 **Bundle ID:** com.getthecamera.app

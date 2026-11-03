@@ -9,6 +9,12 @@ enum AutomaticEventType: String, CaseIterable, Identifiable {
 }
 
 struct AutomaticEventDetector {
+	static func scoreHighlights(in clip: Clip) async -> Int {
+		let spikeCount = await detectAudioSpikes(in: clip, threshold: 0.10).count
+		let density = clip.duration > 0 ? Double(spikeCount) / (clip.duration / 60.0) : 0
+		return min(100, max(1, Int(round(min(1.0, density / 8.0) * 100))))
+	}
+
 	static func detectAudioSpikes(in clip: Clip, threshold: Float = 0.12) async -> [TimeInterval] {
 		let asset = AVURLAsset(url: clip.url)
 		guard let track = try? await asset.loadTracks(withMediaType: .audio).first else {

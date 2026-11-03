@@ -2,7 +2,7 @@ import AVFoundation
 import Foundation
 
 enum HighlightReelExporter {
-	enum ExportPreset: String, CaseIterable, Identifiable {
+	enum ExportPreset: String, CaseIterable, Identifiable, Codable {
 		case source = "Source Quality"
 		case youtubeHD = "YouTube HD"
 		case vertical = "Vertical Social"
@@ -43,6 +43,14 @@ enum HighlightReelExporter {
 	}
 
 	static func export(segments: [Segment], preset: ExportPreset, to outputDirectory: URL) async throws -> URL {
+		try await export(segments: segments, preset: preset, profile: nil, to: outputDirectory)
+	}
+
+	static func export(segments: [Segment], profile: CustomExportProfile, to outputDirectory: URL) async throws -> URL {
+		try await export(segments: segments, preset: profile.preset, profile: profile, to: outputDirectory)
+	}
+
+	private static func export(segments: [Segment], preset: ExportPreset, profile: CustomExportProfile?, to outputDirectory: URL) async throws -> URL {
 		guard !segments.isEmpty else { throw CaptureError.exportFailed }
 
 		let composition = AVMutableComposition()
@@ -77,7 +85,9 @@ enum HighlightReelExporter {
 		}
 
 		try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
-		let filename = "Highlight Reel \(HighlightReelExporter.filenameDate()).mp4"
+		let format = profile?.format ?? .mp4
+		let fileExtension = format == .mp4 ? "mp4" : "mov"
+		let filename = "Highlight Reel \(HighlightReelExporter.filenameDate()).\(fileExtension)"
 		let outputURL = outputDirectory.appendingPathComponent(filename)
 		try? FileManager.default.removeItem(at: outputURL)
 
@@ -87,8 +97,23 @@ enum HighlightReelExporter {
 		) else {
 			throw CaptureError.exportFailed
 		}
+		if let profile, let size = profile.resolution.size {
+			let videoComposition = AVMutableVideoComposition()
+			videoComposition.renderSize = size
+			videoComposition.frameDuration = CMTime(value: 1, timescale: CMTimeScale(max(1, profile.frameRate)))
+			let instruction = AVMutableVideoCompositionInstruction()
+			instruction.timeRange = CMTimeRange(start: .zero, duration: composition.duration)
+			instruction.layerInstructions = composition.tracks
+				.filter { $0.mediaType == .video }
+				.compactMap { track in
+					let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
+					return layerInstruction
+				}
+			videoComposition.instructions = [instruction]
+			exportSession.videoComposition = videoComposition
+		}
 		exportSession.outputURL = outputURL
-		exportSession.outputFileType = .mp4
+		exportSession.outputFileType = format == .mp4 ? .mp4 : .mov
 		exportSession.shouldOptimizeForNetworkUse = true
 		await exportSession.export()
 
