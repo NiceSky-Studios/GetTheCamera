@@ -1,0 +1,118 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>GetTheCamera</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 14px Inter, Segoe UI, sans-serif; color: #e5e7eb; background: #111827; }
+    header { height: 64px; display: flex; align-items: center; padding: 0 20px; gap: 12px; border-bottom: 1px solid #374151; }
+    main { height: calc(100vh - 64px); display: grid; grid-template-columns: 260px 1fr; }
+    aside { border-right: 1px solid #374151; padding: 16px; overflow: auto; }
+    section { padding: 20px; overflow: auto; }
+    button, select, input { border: 1px solid #4b5563; border-radius: 8px; background: #1f2937; color: white; padding: 9px 12px; }
+    button { cursor: pointer; } button.primary { background: #2563eb; border-color: #2563eb; }
+    .clip { display: block; width: 100%; margin: 6px 0; text-align: left; }
+    video { width: 100%; max-height: 420px; background: black; border-radius: 10px; }
+    .timeline { margin-top: 16px; padding: 16px; border: 1px solid #374151; border-radius: 10px; }
+    .row { display: flex; gap: 12px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+    .track { height: 52px; border-radius: 8px; background: linear-gradient(90deg, #2563eb, #7c3aed); position: relative; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>GetTheCamera</strong>
+    <button id="captureBtn" class="primary">Start recording</button>
+    <button id="importBtn">Import clip</button>
+    <span id="status"></span>
+  </header>
+  <main>
+    <aside><h3>Clips</h3><div id="clipList"></div></aside>
+    <section>
+      <video id="preview" controls></video>
+      <div class="timeline">
+        <h3>Timeline Editor</h3>
+        <div class="track"></div>
+        <div class="row">
+          <label>Start <input id="start" type="number" min="0" value="0" step="0.1"></label>
+          <label>End <input id="end" type="number" min="0" value="0" step="0.1"></label>
+          <label>Speed <select id="speed"><option value="0.5">0.5x</option><option value="1" selected>1x</option><option value="1.5">1.5x</option><option value="2">2x</option></select></label>
+          <label>Format <select id="format"><option value="mp4">MP4</option><option value="mov">MOV</option></select></label>
+          <button id="exportBtn">Export clip</button>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script>
+    const preview = document.getElementById("preview");
+    let selectedPath = null;
+    let mediaRecorder = null;
+    let chunks = [];
+    async function refreshClips() {
+      const clips = await getTheCamera.listClips();
+      const list = document.getElementById("clipList");
+      list.innerHTML = "";
+      clips.forEach(clip => {
+        const button = document.createElement("button");
+        button.className = "clip";
+        button.textContent = clip.name;
+        button.onclick = () => selectClip(clip.path);
+        list.appendChild(button);
+      });
+    }
+    function selectClip(filePath) {
+      selectedPath = filePath;
+      preview.src = `file://${filePath}`;
+      preview.onloadedmetadata = () => {
+        document.getElementById("end").value = preview.duration.toFixed(1);
+        document.getElementById("status").textContent = filePath.split("\\").pop();
+      };
+    }
+    document.getElementById("importBtn").onclick = async () => {
+      const file = await getTheCamera.openClip();
+      if (file) selectClip(file);
+    };
+    document.getElementById("captureBtn").onclick = async event => {
+      if (mediaRecorder?.state === "recording") {
+        mediaRecorder.stop();
+        event.target.textContent = "Start recording";
+        return;
+      }
+      const sources = await getTheCamera.listSources();
+      if (!sources.length) return;
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { mandatory: { chromeMediaSource: "desktop", chromeMediaSourceId: sources[0].id } }
+      });
+      chunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = data => chunks.push(data.data);
+      mediaRecorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: "video/webm" });
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        let binary = "";
+        bytes.forEach(byte => binary += String.fromCharCode(byte));
+        const file = await getTheCamera.saveRecording(btoa(binary), "webm");
+        selectClip(file);
+        refreshClips();
+        stream.getTracks().forEach(track => track.stop());
+      };
+      mediaRecorder.start();
+      event.target.textContent = "Stop recording";
+    };
+    document.getElementById("exportBtn").onclick = async () => {
+      if (!selectedPath) return alert("Select a clip first.");
+      document.getElementById("status").textContent = "Exporting...";
+      const file = await getTheCamera.exportClip(selectedPath, {
+        start: Number(document.getElementById("start").value),
+        end: Number(document.getElementById("end").value),
+        speed: Number(document.getElementById("speed").value),
+        format: document.getElementById("format").value
+      });
+      document.getElementById("status").textContent = `Exported: ${file}`;
+      refreshClips();
+    };
+    refreshClips();
+  </script>
+</body>
+</html>

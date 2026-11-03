@@ -447,10 +447,51 @@ struct TrimEditorView: View {
 	@State private var uploadProgress: Double = 0.0
 	@State private var uploadErrorMessage: String?
 	@State private var showProgressPopover = false
+	@State private var timelineStart: Double = 0
+	@State private var timelineEnd: Double = 0
+	@State private var playbackRate: Double = 1
+	@State private var timelineVolume: Float = 1
+	@State private var isExportingTimeline = false
 
 	var body: some View {
 		VStack {
 			NativeVideoPlayerWrapper(playerView: playerView)
+				.frame(minHeight: 360)
+			VStack(alignment: .leading, spacing: 8) {
+				Text("Timeline Editor").font(.headline)
+				RoundedRectangle(cornerRadius: 6)
+					.fill(Color.accentColor.opacity(0.75))
+					.frame(height: 44)
+					.overlay(Text("Video track").foregroundStyle(.white).font(.caption))
+				HStack {
+					LabeledContent("Start") {
+						TextField("Seconds", value: $timelineStart, format: .number)
+							.frame(width: 80)
+					}
+					LabeledContent("End") {
+						TextField("Seconds", value: $timelineEnd, format: .number)
+							.frame(width: 80)
+					}
+					Picker("Speed", selection: $playbackRate) {
+						Text("0.5x").tag(0.5)
+						Text("1x").tag(1.0)
+						Text("1.5x").tag(1.5)
+						Text("2x").tag(2.0)
+					}
+					.frame(width: 130)
+					Slider(value: Binding(
+						get: { Double(timelineVolume) },
+						set: { timelineVolume = Float($0) }
+					), in: 0...1)
+					.frame(width: 160)
+					Button(isExportingTimeline ? "Exporting..." : "Export Edited Clip") {
+						exportTimelineEdit()
+					}
+					.disabled(isExportingTimeline || timelineEnd <= timelineStart)
+				}
+			}
+			.padding(.horizontal)
+			.padding(.bottom, 12)
 		}
 		.toolbar {
 			ToolbarItem {
@@ -572,6 +613,7 @@ struct TrimEditorView: View {
 			playerView.player = AVPlayer(url: clip.url)
 			playerView.showsSharingServiceButton = true
 			playerView.showsFullScreenToggleButton = true
+			timelineEnd = clip.duration
 		}
 	}
 
@@ -626,6 +668,35 @@ struct TrimEditorView: View {
 		NSPasteboard.general.clearContents()
 		NSPasteboard.general.writeObjects([url as NSURL])
 		appState.trackClipAction(action: "copy")
+	}
+
+	private func exportTimelineEdit() {
+		isExportingTimeline = true
+		Task { @MainActor in
+			defer { isExportingTimeline = false }
+			let folder = ClipStorageLocation.folder(outputDirectoryPath: appState.outputDirectoryPath)
+			let output = folder.appendingPathComponent(
+				"Edited \(HighlightReelExporter.filenameDate()).mp4"
+			)
+			do {
+				try await TimelineEditorExporter.export(
+					clip: clip,
+					edit: .init(
+						start: CMTime(seconds: max(0, timelineStart), preferredTimescale: 600),
+						end: CMTime(seconds: min(timelineEnd, clip.duration), preferredTimescale: 600),
+						playbackRate: playbackRate,
+						volume: timelineVolume
+					),
+					to: output
+				)
+				let durationAsset = AVURLAsset(url: output)
+				let duration = try await durationAsset.load(.duration)
+				_ = try await appState.clipLibrary.addClip(url: output, duration: duration.seconds)
+				appState.trackClipAction(action: "timeline_export", result: "completed")
+			} catch {
+				appState.trackClipAction(action: "timeline_export", result: "failed")
+			}
+		}
 	}
 
 	private func shareClip(_ url: URL, serviceName: NSSharingService.Name) {

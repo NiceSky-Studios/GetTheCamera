@@ -1,0 +1,29 @@
+name: Windows v1.8.0 Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        working-directory: windows
+        run: npm install
+      - name: Build NSIS installer and portable ZIP
+        working-directory: windows
+        run: |
+          npm run dist
+          Compress-Archive -Path dist/win-unpacked -DestinationPath dist/GetTheCamera-v1.8.0-windows.zip
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: getthecamera-windows-v1.8.0
+          path: windows/dist/*.*

@@ -1,24 +1,18 @@
-# What's New in GetTheCamera 1.7.1
+# What's New in GetTheCamera 1.8.0
 
-## Cloud Restore and Scheduled Backup
+## Full Clip Timeline Editor
 
-- Added one-click restoration of clips from Google Drive into the local library.
-- Added scheduled backups for every 6 hours, daily, or weekly.
-- Added manual backup and cloud-library refresh controls.
+- Added a dedicated timeline editor below the video player.
+- Added visual start/end controls, playback-speed presets, and volume adjustment.
+- Added timeline exports with a new edited MP4 saved directly to the library.
 
-## Background Transcription Queue
+## Windows Version
 
-- Added an existing-clips transcription queue.
-- Added automatic transcription enqueueing when the transcription preference is enabled.
-- Added queued and active transcription status in Settings.
-
-## Vertical Reel Output
-
-- Added true 1080x1920 vertical composition for the built-in Vertical Social preset.
-- Preserved existing reel transitions, segment trimming, captions, and custom export profiles.
+- Added a Windows Electron application foundation with screen capture, clip library, timeline controls, MP4/MOV export, and import support.
+- Added a GitHub Actions Windows build workflow for an NSIS `.exe` installer and portable archive.
 
 ---
 
-**Version:** 1.7.1
+**Version:** 1.8.0
 **Minimum macOS:** 14.0 Sonoma
 **Bundle ID:** com.getthecamera.app
