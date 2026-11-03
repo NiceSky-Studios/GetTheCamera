@@ -27,7 +27,7 @@ enum ClipNotificationManager {
 		let content = UNMutableNotificationContent()
 		content.title = isHighlightReel ? "Highlight Reel Ready" : "Clip Saved"
 		content.body = name
-		content.sound = .default
+		content.sound = notificationSound
 		schedule(content)
 	}
 
@@ -36,8 +36,13 @@ enum ClipNotificationManager {
 		let content = UNMutableNotificationContent()
 		content.title = "GetTheCamera"
 		content.body = message
-		content.sound = .default
+		content.sound = notificationSound
 		schedule(content)
+	}
+	private static var notificationSound: UNNotificationSound? {
+		let name = UserDefaults.standard.string(forKey: "clipNotificationSoundName") ?? "default"
+		if name == "none" { return nil }
+		return name == "default" ? .default : UNNotificationSound(named: UNNotificationSoundName(name))
 	}
 
 	private static func schedule(_ content: UNMutableNotificationContent) {

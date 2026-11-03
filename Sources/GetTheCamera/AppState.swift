@@ -195,6 +195,26 @@ final class AppState: ObservableObject {
 		}
 	}
 
+	@Published var markMomentHotkey: Hotkey = .markMomentDefault {
+		didSet {
+			guard !isRestoringSettings else { return }
+			if let data = try? JSONEncoder().encode(markMomentHotkey) {
+				UserDefaults.standard.set(data, forKey: "markMomentHotkey")
+			}
+			updateGlobalHotkeys()
+		}
+	}
+
+	@Published var openHubHotkey: Hotkey = .openHubDefault {
+		didSet {
+			guard !isRestoringSettings else { return }
+			if let data = try? JSONEncoder().encode(openHubHotkey) {
+				UserDefaults.standard.set(data, forKey: "openHubHotkey")
+			}
+			updateGlobalHotkeys()
+		}
+	}
+
 	@Published var voiceControlEnabled = AppSettings.default.voiceControlEnabled {
 		didSet {
 			guard !isRestoringSettings else { return }
@@ -700,6 +720,14 @@ final class AppState: ObservableObject {
 		preferredResolutionID = settings.resolutionID
 		hotkey = settings.hotkey
 		startRecordingHotkey = settings.startRecordingHotkey
+		if let data = UserDefaults.standard.data(forKey: "markMomentHotkey"),
+		   let hotkey = try? JSONDecoder().decode(Hotkey.self, from: data) {
+			markMomentHotkey = hotkey
+		}
+		if let data = UserDefaults.standard.data(forKey: "openHubHotkey"),
+		   let hotkey = try? JSONDecoder().decode(Hotkey.self, from: data) {
+			openHubHotkey = hotkey
+		}
 		alwaysRecordEnabled = settings.alwaysRecordEnabled
 		saveFeedbackEnabled = settings.saveFeedbackEnabled
 		saveFeedbackVolume = settings.saveFeedbackVolume
@@ -1058,7 +1086,12 @@ final class AppState: ObservableObject {
 	private func enforceClipRetentionLimit() async {
 		let excessCount = max(0, clipLibrary.clips.count - clipRetentionLimit)
 		guard excessCount > 0 else { return }
-		let oldestClips = Array(clipLibrary.clips.suffix(excessCount))
+		let oldestClips = Array(
+			clipLibrary.clips
+				.filter { !$0.isFavorite }
+				.sorted { $0.createdAt < $1.createdAt }
+				.prefix(excessCount)
+		)
 		for clip in oldestClips {
 			await clipLibrary.deleteClip(clip)
 		}
@@ -1679,7 +1712,9 @@ final class AppState: ObservableObject {
 	private func updateGlobalHotkeys() {
 		hotkeyManager.updateHotkeys(
 			saveReplay: hotkey,
-			recordToggle: startRecordingHotkey
+			recordToggle: startRecordingHotkey,
+			markMoment: markMomentHotkey,
+			openHub: openHubHotkey
 		)
 	}
 

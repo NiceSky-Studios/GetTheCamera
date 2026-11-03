@@ -1,14 +1,14 @@
-# What's New in GetTheCamera 1.8.1
+# What's New in GetTheCamera 1.9.0
 
-## In-App Updates
+## Quality-of-Life Enhancements
 
-- Added macOS download, installation, and automatic relaunch after update confirmation.
-- Added Windows download, silent installation, and automatic relaunch after update confirmation.
-- Added update status and progress feedback to the macOS Hub and Windows application.
-- Windows release builds now publish setup, portable, and installer metadata assets through GitHub Releases.
+- **Global Hotkey Customization:** Configure custom system-wide keyboard shortcuts for opening the Hub, toggling recording, and dropping instant markers.
+- **Disk Space Management & Auto-Pruning:** Set clip retention limits, auto-prune unstarred older clips, and monitor storage limits to prevent disk bloat.
+- **Export Favorites:** Star favorite export presets for one-click access right from the timeline editor.
+- **Custom Notification Sounds & Banners:** Configure custom audio feedback chimes and toast alerts for successful saves, cloud backups, and updates.
 
 ---
 
-**Version:** 1.8.1
+**Version:** 1.9.0
 **Minimum macOS:** 14.0 Sonoma
 **Bundle ID:** com.getthecamera.app

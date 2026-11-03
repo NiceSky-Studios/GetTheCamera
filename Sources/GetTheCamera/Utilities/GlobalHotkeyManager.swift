@@ -8,25 +8,37 @@ final class GlobalHotkeyManager {
 	private let hotKeySignature = OSType(0x5257_4E44) // "RWND"
 	private let saveReplayHotKeyId: UInt32 = 1
 	private let recordToggleHotKeyId: UInt32 = 2
+	private let markMomentHotKeyId: UInt32 = 3
+	private let openHubHotKeyId: UInt32 = 4
 	private var saveReplayHotKeyRef: EventHotKeyRef?
 	private var recordToggleHotKeyRef: EventHotKeyRef?
+	private var markMomentHotKeyRef: EventHotKeyRef?
+	private var openHubHotKeyRef: EventHotKeyRef?
 	private var eventHandler: EventHandlerRef?
 	private var saveReplayHotkey: Hotkey = .default
 	private var recordToggleHotkey: Hotkey = .startRecordingDefault
 	private var onSaveReplay: (() -> Void)?
 	private var onRecordToggle: (() -> Void)?
+	private var onMarkMoment: (() -> Void)?
+	private var onOpenHub: (() -> Void)?
 
 	func configureActions(
 		onSaveReplay: (() -> Void)?,
-		onRecordToggle: (() -> Void)?
+		onRecordToggle: (() -> Void)?,
+		onMarkMoment: (() -> Void)? = nil,
+		onOpenHub: (() -> Void)? = nil
 	) {
 		self.onSaveReplay = onSaveReplay
 		self.onRecordToggle = onRecordToggle
+		self.onMarkMoment = onMarkMoment
+		self.onOpenHub = onOpenHub
 	}
 
 	func register(
 		saveReplayHotkey: Hotkey = .default,
-		recordToggleHotkey: Hotkey = .startRecordingDefault
+		recordToggleHotkey: Hotkey = .startRecordingDefault,
+		markMomentHotkey: Hotkey? = nil,
+		openHubHotkey: Hotkey? = nil
 	) {
 		self.saveReplayHotkey = saveReplayHotkey
 		self.recordToggleHotkey = recordToggleHotkey
@@ -72,6 +84,12 @@ final class GlobalHotkeyManager {
 			store: &recordToggleHotKeyRef,
 			actionName: "record toggle"
 		)
+		if let markMomentHotkey {
+			registerHotKey(markMomentHotkey, id: markMomentHotKeyId, store: &markMomentHotKeyRef, actionName: "mark moment")
+		}
+		if let openHubHotkey {
+			registerHotKey(openHubHotkey, id: openHubHotKeyId, store: &openHubHotKeyRef, actionName: "open hub")
+		}
 
 		if saveReplayHotKeyRef == nil, recordToggleHotKeyRef == nil, let eventHandler {
 			RemoveEventHandler(eventHandler)
@@ -89,6 +107,14 @@ final class GlobalHotkeyManager {
 			UnregisterEventHotKey(recordToggleHotKeyRef)
 			self.recordToggleHotKeyRef = nil
 		}
+		if let markMomentHotKeyRef {
+			UnregisterEventHotKey(markMomentHotKeyRef)
+			self.markMomentHotKeyRef = nil
+		}
+		if let openHubHotKeyRef {
+			UnregisterEventHotKey(openHubHotKeyRef)
+			self.openHubHotKeyRef = nil
+		}
 
 		if let eventHandler {
 			RemoveEventHandler(eventHandler)
@@ -96,8 +122,8 @@ final class GlobalHotkeyManager {
 		}
 	}
 
-	func updateHotkeys(saveReplay: Hotkey, recordToggle: Hotkey) {
-		register(saveReplayHotkey: saveReplay, recordToggleHotkey: recordToggle)
+	func updateHotkeys(saveReplay: Hotkey, recordToggle: Hotkey, markMoment: Hotkey? = nil, openHub: Hotkey? = nil) {
+		register(saveReplayHotkey: saveReplay, recordToggleHotkey: recordToggle, markMomentHotkey: markMoment, openHubHotkey: openHub)
 	}
 
 	private func registerHotKey(
@@ -154,6 +180,10 @@ final class GlobalHotkeyManager {
 			onSaveReplay?()
 		case recordToggleHotKeyId:
 			onRecordToggle?()
+		case markMomentHotKeyId:
+			onMarkMoment?()
+		case openHubHotKeyId:
+			onOpenHub?()
 		default:
 			return
 		}

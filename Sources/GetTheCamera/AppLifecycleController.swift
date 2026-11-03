@@ -104,12 +104,21 @@ final class AppLifecycleController: NSObject {
 			},
 			onRecordToggle: { [weak appState] in
 				appState?.toggleCapture()
+			},
+			onMarkMoment: { [weak appState] in
+				appState?.markMoment()
+			},
+			onOpenHub: { [weak self, weak appState] in
+				guard let appState else { return }
+				self?.windowCoordinator?.openHub(appState: appState, updaterController: AppCompositionRoot.shared.updaterController)
 			}
 		)
 
 		hotkeyManager.register(
 			saveReplayHotkey: appState.hotkey,
-			recordToggleHotkey: appState.startRecordingHotkey
+			recordToggleHotkey: appState.startRecordingHotkey,
+			markMomentHotkey: appState.markMomentHotkey,
+			openHubHotkey: appState.openHubHotkey
 		)
 	}
 

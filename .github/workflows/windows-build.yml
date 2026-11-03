@@ -1,4 +1,4 @@
-name: Windows v1.8.1 Build
+name: Windows v1.9.0 Build
 
 on:
   workflow_dispatch:
@@ -21,21 +21,21 @@ jobs:
         working-directory: windows
         run: |
           npm run dist
-          Compress-Archive -Path dist/win-unpacked -DestinationPath dist/GetTheCamera-v1.8.1-windows.zip
+          Compress-Archive -Path dist/win-unpacked -DestinationPath dist/GetTheCamera-v1.9.0-windows.zip
       - name: Upload Windows release assets
         working-directory: windows
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view v1.8.1 --repo NiceSky-Studios/GetTheCamera 2>$null
+          gh release view v1.9.0 --repo NiceSky-Studios/GetTheCamera 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create v1.8.1 --repo NiceSky-Studios/GetTheCamera --title "GetTheCamera v1.8.1" --notes-file ../RELEASE_NOTES.md
+            gh release create v1.9.0 --repo NiceSky-Studios/GetTheCamera --title "GetTheCamera v1.9.0" --notes-file ../RELEASE_NOTES.md
           }
-          Get-ChildItem dist -Filter "*.exe" | ForEach-Object { gh release upload v1.8.1 --repo NiceSky-Studios/GetTheCamera $_.FullName --clobber }
-          Get-ChildItem dist -Filter "*.zip" | ForEach-Object { gh release upload v1.8.1 --repo NiceSky-Studios/GetTheCamera $_.FullName --clobber }
-          Get-ChildItem dist -Filter "latest*.yml" | ForEach-Object { gh release upload v1.8.1 --repo NiceSky-Studios/GetTheCamera $_.FullName --clobber }
+          Get-ChildItem dist -Filter "*.exe" | ForEach-Object { gh release upload v1.9.0 --repo NiceSky-Studios/GetTheCamera $_.FullName --clobber }
+          Get-ChildItem dist -Filter "*.zip" | ForEach-Object { gh release upload v1.9.0 --repo NiceSky-Studios/GetTheCamera $_.FullName --clobber }
+          Get-ChildItem dist -Filter "latest*.yml" | ForEach-Object { gh release upload v1.9.0 --repo NiceSky-Studios/GetTheCamera $_.FullName --clobber }
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: getthecamera-windows-v1.8.1
+          name: getthecamera-windows-v1.9.0
           path: windows/dist/*.*

@@ -15,6 +15,16 @@ struct Hotkey: Codable, Equatable {
 		modifiers: UInt32(cmdKey | shiftKey)
 	)
 
+	static let markMomentDefault = Hotkey(
+		keyCode: UInt32(kVK_ANSI_M),
+		modifiers: UInt32(cmdKey | shiftKey)
+	)
+
+	static let openHubDefault = Hotkey(
+		keyCode: UInt32(kVK_ANSI_H),
+		modifiers: UInt32(cmdKey | shiftKey)
+	)
+
 	var displayString: String {
 		var parts: [String] = []
 		let flags = modifierFlags

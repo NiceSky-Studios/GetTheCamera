@@ -252,8 +252,11 @@ struct HomeView: View {
 				}
 				Picker("Custom profile", selection: $appState.selectedCustomExportProfileID) {
 					Text("None (built-in preset)").tag(nil as UUID?)
-					ForEach(appState.customExportProfiles) { profile in
-						Text(profile.name).tag(profile.id as UUID?)
+					ForEach(appState.customExportProfiles.sorted { lhs, rhs in
+						if lhs.isFavorite != rhs.isFavorite { return lhs.isFavorite }
+						return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+					}) { profile in
+						Text("\(profile.isFavorite ? "★ " : "")\(profile.name)").tag(profile.id as UUID?)
 					}
 				}
 				if !appState.customExportProfiles.isEmpty {
@@ -262,6 +265,11 @@ struct HomeView: View {
 							LabeledContent("Resolution", value: profile.resolution.rawValue)
 							LabeledContent("Frame rate", value: "\(profile.frameRate) fps")
 							LabeledContent("Format", value: profile.format.rawValue)
+							Button(profile.isFavorite ? "Remove favorite" : "Add to favorites") {
+								if let index = appState.customExportProfiles.firstIndex(where: { $0.id == profile.id }) {
+									appState.customExportProfiles[index].isFavorite.toggle()
+								}
+							}
 							Button("Delete profile", role: .destructive) {
 								appState.customExportProfiles.removeAll { $0.id == profile.id }
 								appState.selectedCustomExportProfileID = nil

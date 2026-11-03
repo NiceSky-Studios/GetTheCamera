@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, desktopCapturer, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, desktopCapturer, globalShortcut, shell } = require("electron");
 const { execFile, spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -22,10 +22,17 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+  globalShortcut.register("CommandOrControl+Shift+R", () => {
+    mainWindow?.webContents.send("qol:toggle-recording");
+  });
+  globalShortcut.register("CommandOrControl+Shift+M", () => {
+    mainWindow?.webContents.send("qol:mark-moment");
+  });
   setTimeout(() => checkForUpdates(true).catch(error => {
     console.error("Automatic update check failed:", error);
   }), 10_000);
 });
+app.on("will-quit", () => globalShortcut.unregisterAll());
 app.on("window-all-closed", () => app.quit());
 
 function downloadFile(url, destination, sendProgress) {

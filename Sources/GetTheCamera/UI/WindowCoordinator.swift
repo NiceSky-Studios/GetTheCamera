@@ -37,6 +37,29 @@ final class WindowCoordinator {
 		openHome(appState: appState)
 	}
 
+	func openHub(appState: AppState, updaterController: UpdaterController) {
+		NSApp.activate(ignoringOtherApps: true)
+		NSApp.setActivationPolicy(.regular)
+		if let existingWindow = NSApp.windows.first(where: { $0.title == "GTC Hub" || $0.identifier?.rawValue == "gtc-hub" }) {
+			existingWindow.makeKeyAndOrderFront(nil)
+			return
+		}
+		let window = NSWindow(
+			contentRect: NSRect(x: 0, y: 0, width: 960, height: 640),
+			styleMask: [.titled, .closable, .miniaturizable, .resizable],
+			backing: .buffered,
+			defer: false
+		)
+		window.title = "GTC Hub"
+		window.identifier = NSUserInterfaceItemIdentifier("gtc-hub")
+		window.center()
+		window.contentViewController = NSHostingController(
+			rootView: SettingsView.GTCHubView(appState: appState, updaterController: updaterController)
+		)
+		window.isReleasedWhenClosed = false
+		window.makeKeyAndOrderFront(nil)
+	}
+
 	func openHome(appState: AppState) {
 		NSApp.activate(ignoringOtherApps: true)
 		NSApp.setActivationPolicy(.regular)

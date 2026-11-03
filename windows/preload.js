@@ -8,5 +8,7 @@ contextBridge.exposeInMainWorld("getTheCamera", {
   openClip: () => ipcRenderer.invoke("dialog:open"),
   checkForUpdates: () => ipcRenderer.invoke("updates:check"),
   onUpdateProgress: callback => ipcRenderer.on("updates:progress", (_event, message) => callback(message)),
+  onToggleRecording: callback => ipcRenderer.on("qol:toggle-recording", () => callback()),
+  onMarkMoment: callback => ipcRenderer.on("qol:mark-moment", () => callback()),
   setZoom: zoom => webFrame.setZoomFactor(zoom)
 });

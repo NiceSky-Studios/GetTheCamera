@@ -33,6 +33,28 @@ struct CustomExportProfile: Codable, Identifiable, Hashable {
 	var resolution: Resolution
 	var frameRate: Int
 	var format: Format
+	var isFavorite: Bool = false
+
+	init(id: UUID = UUID(), name: String, preset: HighlightReelExporter.ExportPreset, resolution: Resolution, frameRate: Int, format: Format, isFavorite: Bool = false) {
+		self.id = id
+		self.name = name
+		self.preset = preset
+		self.resolution = resolution
+		self.frameRate = frameRate
+		self.format = format
+		self.isFavorite = isFavorite
+	}
+
+	init(from decoder: Decoder) throws {
+		let container = try decoder.container(keyedBy: CodingKeys.self)
+		id = try container.decode(UUID.self, forKey: .id)
+		name = try container.decode(String.self, forKey: .name)
+		preset = try container.decode(HighlightReelExporter.ExportPreset.self, forKey: .preset)
+		resolution = try container.decode(Resolution.self, forKey: .resolution)
+		frameRate = try container.decode(Int.self, forKey: .frameRate)
+		format = try container.decode(Format.self, forKey: .format)
+		isFavorite = try container.decodeIfPresent(Bool.self, forKey: .isFavorite) ?? false
+	}
 }
 
 enum CustomExportProfileStore {

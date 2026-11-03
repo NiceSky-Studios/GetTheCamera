@@ -49,6 +49,11 @@
     let selectedPath = null;
     let mediaRecorder = null;
     let chunks = [];
+    document.getElementById("status").title = "Ctrl+Shift+R toggles recording; Ctrl+Shift+M marks a moment.";
+    getTheCamera.onToggleRecording?.(() => document.getElementById("captureBtn").click());
+    getTheCamera.onMarkMoment?.(() => {
+      document.getElementById("status").textContent = "Moment marked";
+    });
     document.getElementById("updateBtn").onclick = async () => {
       document.getElementById("status").textContent = "Checking for updates...";
       const result = await getTheCamera.checkForUpdates();

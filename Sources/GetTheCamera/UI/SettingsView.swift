@@ -152,6 +152,7 @@ struct GeneralSettingsPane: View {
 	@ObservedObject var updaterController: UpdaterController
 	@State private var showingResetConfirmation = false
 	@AppStorage(ClipNotificationManager.enabledKey) private var clipNotificationsEnabled = true
+	@AppStorage("clipNotificationSoundName") private var clipNotificationSoundName = "default"
 
 	var body: some View {
 		Form {
@@ -192,6 +193,14 @@ struct GeneralSettingsPane: View {
 					.onChange(of: clipNotificationsEnabled) { _, enabled in
 						ClipNotificationManager.setEnabled(enabled)
 					}
+				Picker("Notification sound", selection: $clipNotificationSoundName) {
+					Text("System default").tag("default")
+					Text("Silent").tag("none")
+					Text("Submarine").tag("Submarine")
+					Text("Glass").tag("Glass")
+					Text("Ping").tag("Ping")
+				}
+				.disabled(!clipNotificationsEnabled)
 			}
 
 			Section("Diagnostics") {
@@ -209,7 +218,7 @@ struct GeneralSettingsPane: View {
 					Toggle("Automatic clip cleanup", isOn: $appState.automaticCleanupEnabled)
 					Stepper("Retain up to \(appState.clipRetentionLimit) clips", value: $appState.clipRetentionLimit, in: 25...5000, step: 25)
 					Stepper("Storage warning at \(appState.storageWarningLimitGB) GB", value: $appState.storageWarningLimitGB, in: 1...100, step: 1)
-					Text("Automatic cleanup removes the oldest clips when the retention limit is reached.")
+					Text("Automatic cleanup removes the oldest unstarred clips when the retention limit is reached.")
 						.font(.caption)
 						.foregroundStyle(.secondary)
 				}
@@ -570,6 +579,8 @@ struct HotkeysSettingsPane: View {
 			Section {
 				HotkeyRecorderRow(title: "Start/Stop recording", hotkey: $appState.startRecordingHotkey)
 				HotkeyRecorderRow(title: "Save last clip", hotkey: $appState.hotkey)
+				HotkeyRecorderRow(title: "Mark moment", hotkey: $appState.markMomentHotkey)
+				HotkeyRecorderRow(title: "Open GTC Hub", hotkey: $appState.openHubHotkey)
 			} header: {
 				Text("Shortcuts")
 			} footer: {
