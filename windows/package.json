@@ -18,13 +18,6 @@
   "build": {
     "appId": "com.getthecamera.windows",
     "productName": "GetTheCamera",
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "NiceSky-Studios",
-        "repo": "GetTheCamera"
-      }
-    ],
     "files": [
       "**/*",
       "!dist"
