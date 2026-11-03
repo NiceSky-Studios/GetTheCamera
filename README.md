@@ -18,7 +18,7 @@ GetTheCamera is a free, open-source macOS app for instantly clipping highlights 
 
 ## Installation
  
-1. Go to the [Releases page](https://github.com/l1zov/rewind/releases) and download the `.dmg` from the latest release
+1. Go to the [GetTheCamera Releases page](https://github.com/NiceSky-Studios/GetTheCamera/releases) and download the `.dmg` from the latest release
 2. Open the DMG and double-click **Install GetTheCamera**
 3. Launch GetTheCamera from Applications or from the installer prompt
  
