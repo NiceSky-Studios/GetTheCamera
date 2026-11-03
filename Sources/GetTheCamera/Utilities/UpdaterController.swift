@@ -4,19 +4,39 @@ import Foundation
 private struct GitHubRelease: Decodable {
 	let tag_name: String
 	let html_url: String
+	let assets: [GitHubAsset]
+	struct GitHubAsset: Decodable {
+		let name: String
+		let browser_download_url: String
+	}
 }
 
 @MainActor
 final class UpdaterController: ObservableObject {
+	@Published private(set) var statusMessage = "Updates are ready to check."
+	@Published private(set) var isChecking = false
+	@Published private(set) var isUpdating = false
+	@Published private(set) var updateProgress: Double = 0
+
+	private var releaseAsset: GitHubRelease.GitHubAsset?
+	private var releaseURL: URL?
+
 	func checkForUpdates() {
-		Task { await checkGitHubRelease() }
+		Task { await checkGitHubRelease(automatic: false) }
+	}
+
+	func checkForUpdatesAutomatically() {
+		Task { await checkGitHubRelease(automatic: true) }
 	}
 
 	private var currentVersion: String {
 		Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
 	}
 
-	private func checkGitHubRelease() async {
+	private func checkGitHubRelease(automatic: Bool = false) async {
+		isChecking = true
+		statusMessage = "Checking GitHub releases..."
+		defer { isChecking = false }
 		let url = URL(string: "https://api.github.com/repos/NiceSky-Studios/GetTheCamera/releases/latest")!
 		var request = URLRequest(url: url)
 		request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
@@ -30,7 +50,11 @@ final class UpdaterController: ObservableObject {
 			}
 			let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
 			let latestVersion = release.tag_name.trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
-			showReleaseResult(latestVersion: latestVersion, releaseURL: release.html_url)
+			releaseURL = URL(string: release.html_url)
+			releaseAsset = release.assets.first(where: {
+				$0.name.lowercased().contains(".app.zip") || $0.name.lowercased().hasSuffix(".zip")
+			}) ?? release.assets.first(where: { $0.name.lowercased().hasSuffix(".dmg") })
+			showReleaseResult(latestVersion: latestVersion, releaseURL: release.html_url, automatic: automatic)
 		} catch {
 			AppLog.error(.app, "GitHub update check failed", error)
 			showAlert(
@@ -41,14 +65,27 @@ final class UpdaterController: ObservableObject {
 		}
 	}
 
-	private func showReleaseResult(latestVersion: String, releaseURL: String) {
+	private func showReleaseResult(latestVersion: String, releaseURL: String, automatic: Bool = false) {
 		if compareVersions(latestVersion, currentVersion) > 0 {
-			showAlert(
-				title: "GetTheCamera \(latestVersion) is available",
-				message: "You are running \(currentVersion).",
-				url: URL(string: releaseURL) ?? URL(string: "https://github.com/NiceSky-Studios/GetTheCamera/releases")!
-			)
+			statusMessage = "Version \(latestVersion) is available."
+			if automatic {
+				Task { await downloadAndInstallUpdate() }
+				return
+			}
+			let alert = NSAlert()
+			alert.messageText = "GetTheCamera \(latestVersion) is available"
+			alert.informativeText = "You are running \(currentVersion). Download and replace the app now?"
+			alert.addButton(withTitle: "Update and Relaunch")
+			alert.addButton(withTitle: "View Release")
+			alert.addButton(withTitle: "Not Now")
+			let response = alert.runModal()
+			if response == .alertFirstButtonReturn {
+				Task { await downloadAndInstallUpdate() }
+			} else if response == .alertSecondButtonReturn {
+				NSWorkspace.shared.open(URL(string: releaseURL) ?? URL(string: "https://github.com/NiceSky-Studios/GetTheCamera/releases")!)
+			}
 		} else {
+			statusMessage = "GetTheCamera \(currentVersion) is up to date."
 			let alert = NSAlert()
 			alert.messageText = "You’re Up to Date"
 			alert.informativeText = "GetTheCamera \(currentVersion) is the latest released version."
@@ -80,5 +117,113 @@ final class UpdaterController: ObservableObject {
 			}
 		}
 		return 0
+	}
+
+	private func downloadAndInstallUpdate() async {
+		guard let asset = releaseAsset, let url = URL(string: asset.browser_download_url) else {
+			statusMessage = "No installable macOS package is available."
+			showAlert(
+				title: "Installer Not Available",
+				message: "Download the latest macOS package from the GitHub release page.",
+				url: releaseURL ?? URL(string: "https://github.com/NiceSky-Studios/GetTheCamera/releases")!
+			)
+			return
+		}
+		guard asset.name.lowercased().hasSuffix(".zip") else {
+			statusMessage = "The release does not contain an installable ZIP."
+			showAlert(
+				title: "Installer Not Available",
+				message: "Download the macOS ZIP package from the GitHub release page and install it.",
+				url: releaseURL ?? URL(string: "https://github.com/NiceSky-Studios/GetTheCamera/releases")!
+			)
+			return
+		}
+
+		isUpdating = true
+		updateProgress = 0
+		statusMessage = "Downloading \(asset.name)..."
+
+		do {
+			let session = URLSession(configuration: .default)
+			let (downloadedURL, response) = try await session.download(from: url)
+			guard let httpResponse = response as? HTTPURLResponse,
+			      (200..<300).contains(httpResponse.statusCode) else {
+				throw URLError(.badServerResponse)
+			}
+
+			updateProgress = 0.5
+			statusMessage = "Preparing installation..."
+			let temporaryDirectory = FileManager.default.temporaryDirectory
+				.appendingPathComponent("GetTheCamera-\(UUID().uuidString)", isDirectory: true)
+			try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+
+			let extractedDirectory = temporaryDirectory.appendingPathComponent("extracted", isDirectory: true)
+			try FileManager.default.createDirectory(at: extractedDirectory, withIntermediateDirectories: true)
+			let extract = Process()
+			extract.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+			extract.arguments = ["-xk", downloadedURL.path, extractedDirectory.path]
+			try extract.run()
+			extract.waitUntilExit()
+			guard extract.terminationStatus == 0 else {
+				throw NSError(domain: "GetTheCamera.Updater", code: Int(extract.terminationStatus))
+			}
+
+			guard let newApp = findAppBundle(in: extractedDirectory) else {
+				throw NSError(domain: "GetTheCamera.Updater", code: 404, userInfo: [
+					NSLocalizedDescriptionKey: "The downloaded package did not contain GetTheCamera.app."
+				])
+			}
+
+			updateProgress = 0.75
+			statusMessage = "Installing and relaunching..."
+			try installAndRelaunch(sourceApp: newApp, temporaryDirectory: temporaryDirectory)
+			updateProgress = 1
+		} catch {
+			AppLog.error(.app, "macOS update installation failed", error)
+			statusMessage = "Update failed: \(error.localizedDescription)"
+			showAlert(
+				title: "Update Failed",
+				message: error.localizedDescription,
+				url: releaseURL ?? URL(string: "https://github.com/NiceSky-Studios/GetTheCamera/releases")!
+			)
+			isUpdating = false
+		}
+	}
+
+	private func findAppBundle(in directory: URL) -> URL? {
+		let enumerator = FileManager.default.enumerator(
+			at: directory,
+			includingPropertiesForKeys: [.isDirectoryKey],
+			options: [.skipsHiddenFiles]
+		)
+		while let url = enumerator?.nextObject() as? URL {
+			if url.pathExtension == "app",
+			   url.deletingPathExtension().lastPathComponent == "GetTheCamera" {
+				return url
+			}
+		}
+		return nil
+	}
+
+	private func installAndRelaunch(sourceApp: URL, temporaryDirectory: URL) throws {
+		let targetApp = URL(fileURLWithPath: "/Applications/GetTheCamera.app")
+		let shellQuote: (String) -> String = { value in
+			"'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+		}
+		let pid = ProcessInfo.processInfo.processIdentifier
+		let shell = """
+		while kill -0 \(pid) 2>/dev/null; do kill -TERM \(pid) 2>/dev/null || true; sleep 0.5; done
+		rm -rf \(shellQuote(targetApp.path))
+		/usr/bin/ditto \(shellQuote(sourceApp.path)) \(shellQuote(targetApp.path))
+		/usr/bin/xattr -dr com.apple.quarantine \(shellQuote(targetApp.path)) 2>/dev/null || true
+		/bin/chmod -R u+rwX \(shellQuote(targetApp.path))
+		/usr/bin/open -n \(shellQuote(targetApp.path))
+		rm -rf \(shellQuote(temporaryDirectory.path))
+		"""
+		let script = "do shell script \(shellQuote(shell)) with administrator privileges"
+		let process = Process()
+		process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+		process.arguments = ["-e", script]
+		try process.run()
 	}
 }

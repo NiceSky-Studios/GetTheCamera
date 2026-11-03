@@ -1,6 +1,6 @@
 {
   "name": "getthecamera-windows",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "private": true,
   "description": "GetTheCamera for Windows",
   "main": "main.js",
@@ -18,6 +18,13 @@
   "build": {
     "appId": "com.getthecamera.windows",
     "productName": "GetTheCamera",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "NiceSky-Studios",
+        "repo": "GetTheCamera"
+      }
+    ],
     "files": [
       "**/*",
       "!dist"

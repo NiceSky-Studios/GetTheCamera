@@ -169,6 +169,12 @@ struct GeneralSettingsPane: View {
 				Button("Check for Updates...") {
 					updaterController.checkForUpdates()
 				}
+				.disabled(updaterController.isChecking || updaterController.isUpdating)
+				if updaterController.isUpdating {
+					ProgressView(value: updaterController.updateProgress)
+				}
+				Text(updaterController.statusMessage)
+					.foregroundStyle(.secondary)
 			}
 
 			Section("Privacy") {

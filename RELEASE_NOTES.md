@@ -1,18 +1,14 @@
-# What's New in GetTheCamera 1.8.0
+# What's New in GetTheCamera 1.8.1
 
-## Full Clip Timeline Editor
+## In-App Updates
 
-- Added a dedicated timeline editor below the video player.
-- Added visual start/end controls, playback-speed presets, and volume adjustment.
-- Added timeline exports with a new edited MP4 saved directly to the library.
-
-## Windows Version
-
-- Added a Windows Electron application foundation with screen capture, clip library, timeline controls, MP4/MOV export, and import support.
-- Added a GitHub Actions Windows build workflow for an NSIS `.exe` installer and portable archive.
+- Added macOS download, installation, and automatic relaunch after update confirmation.
+- Added Windows download, silent installation, and automatic relaunch after update confirmation.
+- Added update status and progress feedback to the macOS Hub and Windows application.
+- Windows release builds now publish setup, portable, and installer metadata assets through GitHub Releases.
 
 ---
 
-**Version:** 1.8.0
+**Version:** 1.8.1
 **Minimum macOS:** 14.0 Sonoma
 **Bundle ID:** com.getthecamera.app

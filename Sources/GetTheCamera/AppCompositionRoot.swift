@@ -21,5 +21,9 @@ final class AppCompositionRoot {
 			appState: appState,
 			hotkeyManager: hotkeyManager
 		)
+		Task { @MainActor in
+			try? await Task.sleep(nanoseconds: 10 * 1_000_000_000)
+			updaterController.checkForUpdatesAutomatically()
+		}
 	}
 }

@@ -24,6 +24,7 @@
     <strong>GetTheCamera</strong>
     <button id="captureBtn" class="primary">Start recording</button>
     <button id="importBtn">Import clip</button>
+    <button id="updateBtn">Check for updates</button>
     <span id="status"></span>
   </header>
   <main>
@@ -48,6 +49,19 @@
     let selectedPath = null;
     let mediaRecorder = null;
     let chunks = [];
+    document.getElementById("updateBtn").onclick = async () => {
+      document.getElementById("status").textContent = "Checking for updates...";
+      const result = await getTheCamera.checkForUpdates();
+      if (result.status === "up-to-date") document.getElementById("status").textContent = `GetTheCamera ${result.version} is up to date`;
+      else if (result.status === "no-installer") document.getElementById("status").textContent = `Version ${result.version} is available`;
+      else if (result.status === "declined") document.getElementById("status").textContent = "Update postponed";
+      else if (result.status === "error") document.getElementById("status").textContent = `Update error: ${result.message}`;
+    };
+    getTheCamera.onUpdateProgress?.(progress => {
+      document.getElementById("status").textContent = progress.status === "downloading"
+        ? `Downloading update: ${progress.percent}%`
+        : "Installing update and relaunching...";
+    });
     async function refreshClips() {
       const clips = await getTheCamera.listClips();
       const list = document.getElementById("clipList");
