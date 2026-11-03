@@ -2,7 +2,7 @@
 
 GetTheCamera is a free, open-source macOS app for capturing, organizing, editing, and sharing gameplay highlights. It runs from the menu bar and provides local voice commands, reusable projects, Smart Reels, transcription, and export tools.
 
-**Current release:** 1.7.0
+**Current release:** 1.7.1
 **Minimum macOS:** 14.0 Sonoma  
 **Architecture:** Apple Silicon (`arm64`)
 
@@ -65,7 +65,7 @@ swift run
 Create release DMG packages with:
 
 ```bash
-./scripts/build-package.sh --version 1.7.0
+./scripts/build-package.sh --version 1.7.1
 ```
 
 Release artifacts are written to `dist/`.
@@ -73,7 +73,7 @@ Release artifacts are written to `dist/`.
 ## Release Notes
 
 - [Current release notes](RELEASE_NOTES.md)
-- [1.7.0 update log](Update%20Log/1.7.0.md)
+- [1.7.1 update log](Update%20Log/1.7.1.md)
 
 ## Contact
 

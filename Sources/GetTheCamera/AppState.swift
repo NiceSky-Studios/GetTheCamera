@@ -90,6 +90,9 @@ final class AppState: ObservableObject {
 	@Published var autoTranscriptEnabled: Bool {
 		didSet { UserDefaults.standard.set(autoTranscriptEnabled, forKey: "autoTranscriptEnabled") }
 	}
+	@Published var cloudBackupIntervalHours: Int {
+		didSet { UserDefaults.standard.set(cloudBackupIntervalHours, forKey: "cloudBackupIntervalHours") }
+	}
 
 	@Published var clipToOpen: Clip?
 
@@ -657,6 +660,7 @@ final class AppState: ObservableObject {
 		automaticAudioSpikeMarkers = UserDefaults.standard.object(forKey: "automaticAudioSpikeMarkers") as? Bool ?? false
 		automaticClipStartMarkers = UserDefaults.standard.object(forKey: "automaticClipStartMarkers") as? Bool ?? false
 		autoTranscriptEnabled = UserDefaults.standard.object(forKey: "autoTranscriptEnabled") as? Bool ?? false
+		cloudBackupIntervalHours = UserDefaults.standard.object(forKey: "cloudBackupIntervalHours") as? Int ?? 0
 		if let id = UserDefaults.standard.string(forKey: "selectedCustomExportProfileID"),
 		   let profileID = UUID(uuidString: id),
 		   loadedCustomExportProfiles.contains(where: { $0.id == profileID }) {
@@ -670,6 +674,15 @@ final class AppState: ObservableObject {
 		dotaGSIServer?.start()
 		Task.detached(priority: .utility) {
 			DotaGSIConfigInstaller.install(port: DotaGSIServer.defaultPort, authToken: dotaGSIAuthToken)
+		}
+		Task { [weak self] in
+			while let self {
+				let interval = max(self.cloudBackupIntervalHours, 1)
+				try? await Task.sleep(nanoseconds: UInt64(interval) * 60 * 60 * 1_000_000_000)
+				if self.cloudBackupIntervalHours > 0, self.googleDriveSyncEnabled {
+					await self.runScheduledCloudBackup()
+				}
+			}
 		}
 
 		clipLibrary.objectWillChange.sink { [weak self] _ in
@@ -926,6 +939,17 @@ final class AppState: ObservableObject {
 		clipLibrary.clips.reduce(0) { total, clip in
 			let values = try? clip.url.resourceValues(forKeys: [.fileSizeKey])
 			return total + Int64(values?.fileSize ?? 0)
+		}
+	}
+
+	func runScheduledCloudBackup() async {
+		await GoogleDriveSyncManager.shared.processQueue()
+		for clip in clipLibrary.clips {
+			do {
+				try await GoogleDriveSyncManager.shared.sync(clipAt: clip.url)
+			} catch {
+				GoogleDriveSyncManager.shared.queueForUpload(clipAt: clip.url)
+			}
 		}
 	}
 
@@ -1384,6 +1408,10 @@ final class AppState: ObservableObject {
 			}
 			lastClip = clip
 			ClipNotificationManager.clipSaved(name: clip.url.lastPathComponent)
+			if autoTranscriptEnabled {
+				TranscriptManager.shared.enqueue(clip)
+				Task { await TranscriptManager.shared.processQueue() }
+			}
 			if googleDriveSyncEnabled {
 				Task {
 					do {

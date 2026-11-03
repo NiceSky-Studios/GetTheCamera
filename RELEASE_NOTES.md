@@ -1,25 +1,24 @@
-# What's New in GetTheCamera 1.7.0
+# What's New in GetTheCamera 1.7.1
 
-## Complete Cloud Backup and Sharing
+## Cloud Restore and Scheduled Backup
 
-- Added a one-click backup action for existing clips in Google Drive.
-- New clips continue to upload automatically when cloud sync is enabled.
-- Added native macOS AirDrop, Mail, Messages, copy, and Finder sharing actions for clips.
+- Added one-click restoration of clips from Google Drive into the local library.
+- Added scheduled backups for every 6 hours, daily, or weekly.
+- Added manual backup and cloud-library refresh controls.
 
-## On-Device Smart Highlights
+## Background Transcription Queue
 
-- Added an AI Highlights library category for clips ranked by on-device audio activity.
-- Added highlight scores and high-confidence tags while clips are being saved.
-- Local highlight detection requires no external AI service.
+- Added an existing-clips transcription queue.
+- Added automatic transcription enqueueing when the transcription preference is enabled.
+- Added queued and active transcription status in Settings.
 
-## Custom Reel Export Profiles
+## Vertical Reel Output
 
-- Added named, persistent reel export profiles.
-- Added resolution, frame-rate, container-format, and built-in quality choices.
-- Added profile selection and deletion in the Reel Editor.
+- Added true 1080x1920 vertical composition for the built-in Vertical Social preset.
+- Preserved existing reel transitions, segment trimming, captions, and custom export profiles.
 
 ---
 
-**Version:** 1.7.0
+**Version:** 1.7.1
 **Minimum macOS:** 14.0 Sonoma
 **Bundle ID:** com.getthecamera.app

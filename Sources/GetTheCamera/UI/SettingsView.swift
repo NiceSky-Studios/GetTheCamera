@@ -290,6 +290,17 @@ struct CaptureSettingsPane: View {
 				Toggle("Add a clip-start marker", isOn: $appState.automaticClipStartMarkers)
 				Toggle("Offer automatic transcription", isOn: $appState.autoTranscriptEnabled)
 					.help("Transcription is still run on demand from each clip's Captions menu.")
+				HStack {
+					Text(TranscriptManager.shared.isTranscribing
+						? "Transcribing background queue..."
+						: "\(TranscriptManager.shared.queuedClipCount) clips queued")
+					Spacer()
+					Button("Queue existing clips") {
+						TranscriptManager.shared.enqueue(appState.clipLibrary.clips)
+						Task { await TranscriptManager.shared.processQueue() }
+					}
+				}
+				.font(.caption)
 
 				LabeledContent {
 					Toggle("", isOn: $appState.captureTargetPromptEnabled)
@@ -824,6 +835,12 @@ struct IntegrationsSettingsPane: View {
 
 			if appState.googleDriveSyncEnabled {
 				Section("Cloud Library") {
+					Picker("Scheduled backup", selection: $appState.cloudBackupIntervalHours) {
+						Text("Off").tag(0)
+						Text("Every 6 hours").tag(6)
+						Text("Daily").tag(24)
+						Text("Weekly").tag(168)
+					}
 					Button("Back up existing clips") {
 						Task {
 							for clip in appState.clipLibrary.clips {
@@ -835,6 +852,25 @@ struct IntegrationsSettingsPane: View {
 							}
 						}
 					}
+					Button("Restore cloud clips") {
+						Task {
+							cloudLoading = true
+							cloudError = nil
+							do {
+								let folder = ClipStorageLocation.folder(outputDirectoryPath: appState.outputDirectoryPath)
+								for file in try await GoogleDriveSyncManager.shared.listCloudFiles() {
+									let restored = try await GoogleDriveSyncManager.shared.download(file: file, to: folder)
+									let asset = AVURLAsset(url: restored)
+									let duration = try await asset.load(.duration)
+									_ = try await appState.clipLibrary.addClip(url: restored, duration: duration.seconds)
+								}
+							} catch {
+								cloudError = error.localizedDescription
+							}
+							cloudLoading = false
+						}
+					}
+					.disabled(cloudLoading)
 					Button(cloudLoading ? "Refreshing..." : "Refresh Cloud Library") {
 						Task {
 							cloudLoading = true

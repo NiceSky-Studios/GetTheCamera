@@ -112,6 +112,29 @@ enum HighlightReelExporter {
 			videoComposition.instructions = [instruction]
 			exportSession.videoComposition = videoComposition
 		}
+		else if preset == .vertical {
+			let size = CGSize(width: 1080, height: 1920)
+			let videoComposition = AVMutableVideoComposition()
+			videoComposition.renderSize = size
+			videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
+			let instruction = AVMutableVideoCompositionInstruction()
+			instruction.timeRange = CMTimeRange(start: .zero, duration: composition.duration)
+			instruction.layerInstructions = composition.tracks
+				.filter { $0.mediaType == .video }
+				.map { track in
+					let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
+					let sourceSize = track.naturalSize.applying(track.preferredTransform)
+					let width = abs(sourceSize.width)
+					let height = abs(sourceSize.height)
+					let scale = max(size.width / max(width, 1), size.height / max(height, 1))
+					let transform = CGAffineTransform(scaleX: scale, y: scale)
+						.concatenating(CGAffineTransform(translationX: (size.width - width * scale) / 2, y: (size.height - height * scale) / 2))
+					layerInstruction.setTransform(transform, at: .zero)
+					return layerInstruction
+				}
+			videoComposition.instructions = [instruction]
+			exportSession.videoComposition = videoComposition
+		}
 		exportSession.outputURL = outputURL
 		exportSession.outputFileType = format == .mp4 ? .mp4 : .mov
 		exportSession.shouldOptimizeForNetworkUse = true

@@ -4,8 +4,12 @@ import Speech
 
 @MainActor
 final class TranscriptManager: ObservableObject {
+	static let shared = TranscriptManager()
+
 	@Published private(set) var transcripts: [UUID: String] = [:]
 	@Published private(set) var isTranscribing = false
+	@Published private(set) var queuedClipCount = 0
+	private var queue: [Clip] = []
 
 	init() {
 		if let saved = UserDefaults.standard.dictionary(forKey: "clipTranscripts") as? [String: String] {
@@ -19,6 +23,26 @@ final class TranscriptManager: ObservableObject {
 
 	func cachedTranscript(for clipID: UUID) -> String? {
 		transcripts[clipID]
+	}
+
+	func enqueue(_ clip: Clip) {
+		guard transcripts[clip.id] == nil else { return }
+		guard !queue.contains(where: { $0.id == clip.id }) else { return }
+		queue.append(clip)
+		queuedClipCount = queue.count
+	}
+
+	func enqueue(_ clips: [Clip]) {
+		for clip in clips { enqueue(clip) }
+	}
+
+	func processQueue() async {
+		guard !isTranscribing else { return }
+		while let clip = queue.first {
+			queue.removeFirst()
+			queuedClipCount = queue.count
+			await transcribe(clip)
+		}
 	}
 
 	func transcribe(_ clip: Clip) async {

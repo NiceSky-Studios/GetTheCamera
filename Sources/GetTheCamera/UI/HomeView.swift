@@ -18,7 +18,7 @@ enum ReelCaptionStyle: String, CaseIterable, Identifiable {
 
 struct HomeView: View {
 	@ObservedObject var appState: AppState
-	@StateObject private var transcriptManager = TranscriptManager()
+	@StateObject private var transcriptManager = TranscriptManager.shared
 	@State private var selectedClip: Clip?
 	@State private var selectedCategory: String? = "all"
 	@State private var searchText = ""
@@ -435,7 +435,7 @@ struct ClipCard: View {
 struct TrimEditorView: View {
 	let clip: Clip
 	@ObservedObject var appState: AppState
-	@StateObject private var transcriptManager = TranscriptManager()
+	@StateObject private var transcriptManager = TranscriptManager.shared
 	@State private var playerView = AVPlayerView()
 	@State private var isUploading = false
 	@State private var uploadSuccess = false

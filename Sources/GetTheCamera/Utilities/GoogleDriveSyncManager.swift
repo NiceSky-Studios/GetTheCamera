@@ -96,6 +96,25 @@ final class GoogleDriveSyncManager {
 		}
 	}
 
+	func download(file: GoogleDriveFile, to destinationDirectory: URL) async throws -> URL {
+		guard let clientID else { throw GoogleDriveError.configuration("Missing Google OAuth client ID") }
+		let accessToken = try await validAccessToken(clientID: clientID)
+		guard !accessToken.isEmpty else { throw GoogleDriveError.notAuthorized }
+
+		var components = URLComponents(string: "https://www.googleapis.com/drive/v3/files/\(file.id)")!
+		components.queryItems = [URLQueryItem(name: "alt", value: "media")]
+		var request = URLRequest(url: components.url!)
+		request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+		let (temporaryURL, response) = try await URLSession.shared.download(for: request)
+		try validate(response)
+
+		try FileManager.default.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
+		let destination = destinationDirectory.appendingPathComponent(file.name)
+		try? FileManager.default.removeItem(at: destination)
+		try FileManager.default.moveItem(at: temporaryURL, to: destination)
+		return destination
+	}
+
 	func sync(clipAt fileURL: URL) async throws {
 		guard let clientID else { throw GoogleDriveError.configuration("Missing Google OAuth client ID") }
 		status = "Uploading"
