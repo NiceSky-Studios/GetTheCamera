@@ -66,6 +66,7 @@ function downloadFile(url, destination, sendProgress) {
 }
 
 async function checkForUpdates(silent = false) {
+  const currentPlatform = process.platform;
   const response = await fetch("https://api.github.com/repos/NiceSky-Studios/GetTheCamera/releases/latest", {
     headers: { Accept: "application/vnd.github+json", "User-Agent": `GetTheCamera/${app.getVersion()}` }
   });
@@ -83,16 +84,29 @@ async function checkForUpdates(silent = false) {
   };
   if (compare(latest, app.getVersion()) <= 0) return { status: "up-to-date", version: app.getVersion() };
 
-  const setup = release.assets?.find(asset => /windows.*setup.*\.exe$/i.test(asset.name))
-    || release.assets?.find(asset => /setup.*\.exe$/i.test(asset.name) || /GetTheCamera.*\.exe$/i.test(asset.name));
-  if (!setup) return { status: "no-installer", version: latest, url: release.html_url };
+  let updateAsset = null;
+  if (currentPlatform === "win32") {
+    updateAsset = release.assets?.find(asset => /windows.*setup.*\.exe$/i.test(asset.name))
+      || release.assets?.find(asset => /setup.*\.exe$/i.test(asset.name) || /GetTheCamera.*Setup.*\.exe$/i.test(asset.name))
+      || release.assets?.find(asset => /\.exe$/i.test(asset.name) && !/(mac|darwin|linux)/i.test(asset.name))
+      || release.assets?.find(asset => /windows.*\.zip$/i.test(asset.name) || /win32.*\.zip$/i.test(asset.name));
+  } else if (currentPlatform === "darwin") {
+    updateAsset = release.assets?.find(asset => /\.app\.zip$/i.test(asset.name))
+      || release.assets?.find(asset => /(mac|darwin|osx).*\.zip$/i.test(asset.name))
+      || release.assets?.find(asset => /\.dmg$/i.test(asset.name));
+  } else {
+    updateAsset = release.assets?.find(asset => /\.AppImage$/i.test(asset.name) || /\.deb$/i.test(asset.name));
+  }
+
+  if (!updateAsset) return { status: "no-installer", version: latest, platform: currentPlatform, url: release.html_url };
 
   if (!silent) {
+    const platformName = currentPlatform === "win32" ? "Windows" : currentPlatform === "darwin" ? "macOS" : "Linux";
     const choice = await dialog.showMessageBox(mainWindow, {
       type: "info",
-      title: "Update available",
-      message: `GetTheCamera ${latest} is available`,
-      detail: `You are running ${app.getVersion()}. Download and install it now?`,
+      title: "Update Available",
+      message: `GetTheCamera ${latest} is available for ${platformName}`,
+      detail: `You are running ${app.getVersion()}. Download and install update now?`,
       buttons: ["Update and Relaunch", "Not Now"],
       defaultId: 0,
       cancelId: 1
@@ -101,14 +115,20 @@ async function checkForUpdates(silent = false) {
   }
 
   mainWindow?.webContents.send("updates:progress", { status: "downloading", percent: 0 });
-  const destination = path.join(app.getPath("temp"), setup.name);
-  await downloadFile(setup.browser_download_url, destination, percent => {
+  const destination = path.join(app.getPath("temp"), updateAsset.name);
+  await downloadFile(updateAsset.browser_download_url, destination, percent => {
     mainWindow?.webContents.send("updates:progress", { status: "downloading", percent });
   });
-  mainWindow?.webContents.send("updates:progress", { status: "installing", percent: 100 });
-  spawn(destination, ["/S"], { detached: true, stdio: "ignore" }).unref();
-  setTimeout(() => app.quit(), 500);
-  return { status: "installing", version: latest };
+
+  if (currentPlatform === "win32" && destination.endsWith(".exe")) {
+    mainWindow?.webContents.send("updates:progress", { status: "installing", percent: 100 });
+    spawn(destination, ["/S"], { detached: true, stdio: "ignore" }).unref();
+    setTimeout(() => app.quit(), 500);
+    return { status: "installing", version: latest };
+  } else {
+    shell.openPath(destination);
+    return { status: "downloaded", version: latest, path: destination };
+  }
 }
 
 ipcMain.handle("updates:check", async () => {

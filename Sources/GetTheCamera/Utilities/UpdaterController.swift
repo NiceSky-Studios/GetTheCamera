@@ -51,9 +51,21 @@ final class UpdaterController: ObservableObject {
 			let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
 			let latestVersion = release.tag_name.trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
 			releaseURL = URL(string: release.html_url)
-			releaseAsset = release.assets.first(where: {
-				$0.name.lowercased().contains(".app.zip") || $0.name.lowercased().hasSuffix(".zip")
-			}) ?? release.assets.first(where: { $0.name.lowercased().hasSuffix(".dmg") })
+
+			let isWindowsAsset: (String) -> Bool = { name in
+				let lower = name.lowercased()
+				return lower.contains("windows") || lower.contains("win32") || lower.contains("win64") || lower.contains("-win") || lower.hasSuffix(".exe") || lower.hasSuffix(".msi")
+			}
+			let macOSAssets = release.assets.filter { !isWindowsAsset($0.name) }
+
+			releaseAsset = macOSAssets.first(where: {
+				let lower = $0.name.lowercased()
+				return lower.contains(".app.zip") || lower.contains("mac") || lower.contains("darwin") || lower.contains("osx")
+			}) ?? macOSAssets.first(where: {
+				$0.name.lowercased().hasSuffix(".zip")
+			}) ?? macOSAssets.first(where: {
+				$0.name.lowercased().hasSuffix(".dmg")
+			})
 			showReleaseResult(latestVersion: latestVersion, releaseURL: release.html_url, automatic: automatic)
 		} catch {
 			AppLog.error(.app, "GitHub update check failed", error)
@@ -206,7 +218,22 @@ final class UpdaterController: ObservableObject {
 	}
 
 	private func installAndRelaunch(sourceApp: URL, temporaryDirectory: URL) throws {
-		let targetApp = URL(fileURLWithPath: "/Applications/GetTheCamera.app")
+		guard let bundle = Bundle(url: sourceApp),
+		      let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+		      !version.isEmpty else {
+			throw NSError(domain: "GetTheCamera.Updater", code: 400, userInfo: [
+				NSLocalizedDescriptionKey: "Extracted app bundle is invalid or missing version metadata."
+			])
+		}
+
+		let currentAppURL = Bundle.main.bundleURL
+		let targetApp: URL
+		if currentAppURL.pathExtension == "app" && !currentAppURL.path.contains("/var/folders") && !currentAppURL.path.contains("/tmp") {
+			targetApp = currentAppURL
+		} else {
+			targetApp = URL(fileURLWithPath: "/Applications/GetTheCamera.app")
+		}
+
 		let shellQuote: (String) -> String = { value in
 			"'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
 		}
